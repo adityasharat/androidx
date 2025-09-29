@@ -19,35 +19,50 @@ package androidx.compose.foundation.lazy.layout
 import androidx.compose.ui.layout.SubcomposeLayoutState
 import androidx.compose.ui.util.trace
 
-class LazyLayoutPrecomposeState() {
+internal class LazyLayoutPrecomposeState() {
 
+    var precomposeHandleProvider: PrecomposeHandleProvider? = null
+
+    fun schedulePrecomposition(index: Int): PrecomposeHandle {
+        return precomposeHandleProvider?.schedulePrecomposition(index = index) ?: NoOpHandle
+    }
 }
 
 interface PrecomposeScheduler {
-    fun schedulePrefetch(request: PrecomposeRequest)
+    fun schedulePrecomposition(request: PrecomposeRequest)
 }
 
 interface PrecomposeRequest {
     fun PrecomposeRequestScope.execute(): Boolean
 }
 
-interface PrecomposeRequestScope {
-
-}
+interface PrecomposeRequestScope {}
 
 interface PrecomposeHandle {
 
     fun cancel()
 
     fun pause()
+}
 
+internal class PrecomposeHandleProvider(
+    private val itemContentFactory: LazyLayoutItemContentFactory,
+    private val subcomposeLayoutState: SubcomposeLayoutState,
+) {
+    fun schedulePrecomposition(index: Int): PrecomposeHandle {
+        return DefaultPrecomposeRequestAndHandle(
+            index = index,
+            itemContentFactory = itemContentFactory,
+            subcomposeLayoutState = subcomposeLayoutState,
+        )
+    }
 }
 
 internal class DefaultPrecomposeRequestAndHandle(
     private val index: Int,
     private val itemContentFactory: LazyLayoutItemContentFactory,
     private val subcomposeLayoutState: SubcomposeLayoutState,
-): PrecomposeRequest, PrecomposeHandle {
+) : PrecomposeRequest, PrecomposeHandle {
 
     private var pausedPrecomposition: SubcomposeLayoutState.PausedPrecomposition? = null
 
@@ -70,7 +85,6 @@ internal class DefaultPrecomposeRequestAndHandle(
         pauseRequested = true
     }
 
-
     override fun PrecomposeRequestScope.execute(): Boolean {
 
         val itemProvider = itemContentFactory.itemProvider()
@@ -84,11 +98,22 @@ internal class DefaultPrecomposeRequestAndHandle(
         val key = itemProvider.getKey(index)
         val contentType = itemProvider.getContentType(index)
 
-        trace("compose:lazy:prefetch:compose") {
-            performPausableComposition(key, contentType)
+        if (keyUsedForComposition != null && key != keyUsedForComposition) {
+            // key for the requested index changed, the request is now invalid
+            cleanup()
+            return false
         }
 
-        return isComposed
+        if (!isComposed) {
+            trace("compose:lazy:precompose:compose") {
+                performPausableComposition(key, contentType)
+            }
+            if (!isComposed) {
+                return true
+            }
+        }
+
+        return false
     }
 
     private fun PrecomposeRequestScope.performPausableComposition(key: Any, contentType: Any?) {
@@ -109,7 +134,13 @@ internal class DefaultPrecomposeRequestAndHandle(
     }
 
     private fun cleanup() {
-
+        pausedPrecomposition?.cancel()
+        pausedPrecomposition = null
     }
+}
 
+private object NoOpHandle : PrecomposeHandle {
+    override fun cancel() {}
+
+    override fun pause() {}
 }
