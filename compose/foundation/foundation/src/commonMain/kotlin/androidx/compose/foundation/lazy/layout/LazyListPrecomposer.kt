@@ -19,18 +19,28 @@ package androidx.compose.foundation.lazy.layout
 import androidx.compose.ui.layout.SubcomposeLayoutState
 import androidx.compose.ui.util.trace
 
-class LazyLayoutPrecomposeState(private val executor: PrecomposeScheduler) {
+class LazyLayoutPrecomposeState(internal val executor: PrecomposeScheduler) {
 
   var precomposeHandleProvider: PrecomposeHandleProvider? = null
 
-  fun schedulePrecomposition(index: Int): PrecomposeHandle {
-    return precomposeHandleProvider?.schedulePrecomposition(index = index) ?: NoOpHandle
+  fun createPrecompositionHandle(index: Int): PrecomposeHandle {
+    return precomposeHandleProvider?.create(index = index) ?: NoOpHandle
   }
 }
 
 interface PrecomposeScheduler {
-  fun schedulePrecomposition(request: PrecomposeRequest)
-  fun onDispose()
+
+  var state: SubcomposeLayoutState?
+  var items: (() -> LazyLayoutItemProvider)?
+
+  fun start()
+
+  fun pause()
+
+  fun onDispose() {
+    state = null
+    items = null
+  }
 }
 
 interface PrecomposeRequest {
@@ -50,13 +60,17 @@ class PrecomposeHandleProvider
 internal constructor(
     private val itemContentFactory: LazyLayoutItemContentFactory,
     private val subcomposeLayoutState: SubcomposeLayoutState,
+    internal var executor: PrecomposeScheduler? = null,
 ) {
 
   var isActive: Boolean = true
 
-  var executor: PrecomposeScheduler? = null
+  init {
+    executor?.state = subcomposeLayoutState
+    executor?.items = itemContentFactory.itemProvider
+  }
 
-  fun schedulePrecomposition(index: Int): PrecomposeHandle {
+  fun create(index: Int): PrecomposeHandle {
     return DefaultPrecomposeRequestAndHandle(
         index = index,
         itemContentFactory = itemContentFactory,

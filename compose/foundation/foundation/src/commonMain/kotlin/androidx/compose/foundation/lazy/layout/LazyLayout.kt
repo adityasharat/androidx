@@ -129,8 +129,12 @@ fun LazyLayout(
 
                 precomposeState?.precomposeHandleProvider = PrecomposeHandleProvider(
                     itemContentFactory = itemContentFactory,
-                    subcomposeLayoutState = subcomposeLayoutState
+                    subcomposeLayoutState = subcomposeLayoutState,
+                    executor = precomposeState.executor
                 )
+
+                precomposeState?.executor?.start()
+
                 onDispose {
                     // clean up prefetch handle provider
                     prefetchState?.prefetchHandleProvider?.onDisposed()
