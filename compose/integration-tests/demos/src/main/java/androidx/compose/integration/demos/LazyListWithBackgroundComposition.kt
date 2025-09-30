@@ -20,6 +20,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,8 +32,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.layout.LazyLayoutPrecomposeState
 import androidx.compose.foundation.lazy.layout.PrecomposeScheduler
+import androidx.compose.material.Button
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,26 +53,35 @@ fun BgCompositionList() {
         LazyLayoutPrecomposeState(executor = SimpleScheduler())
     }
 
-    LazyColumn(
-        precomposeState = precomposeState,
-    ) {
-        items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
-            when (item) {
-                is Item.Header -> Header(item)
-                is Item.Text -> Text(item)
-                is Item.Image -> Image(item)
-                is Item.Actions -> {
-                    Column {
-                        Actions()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(Color.LightGray)
-                        ) {}
+    val showList = remember { mutableStateOf(false) }
+
+    if (showList.value) {
+
+        LazyColumn(
+            precomposeState = precomposeState,
+        ) {
+            items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
+                when (item) {
+                    is Item.Header -> Header(item)
+                    is Item.Text -> Text(item)
+                    is Item.Image -> Image(item)
+                    is Item.Actions -> {
+                        Column {
+                            Actions()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(Color.LightGray)
+                            ) {}
+                        }
                     }
                 }
             }
+        }
+    } else {
+        Button(onClick = { showList.value = true }) {
+            Text(text = "Show", fontSize = 20.sp)
         }
     }
 }
@@ -130,7 +142,7 @@ class SimpleScheduler() : PrecomposeScheduler() {
                     }
                 }
                 currentIndex++
-
+                this.handler.post(this)
             }
         }
     }
