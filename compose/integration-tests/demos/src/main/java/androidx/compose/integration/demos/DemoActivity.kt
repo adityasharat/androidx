@@ -87,18 +87,6 @@ class DemoActivity : FragmentActivity() {
                 ) {
                     hostView = LocalView.current
                     focusManager = LocalFocusManager.current
-                    val activityStarter =
-                        fun(demo: ActivityDemo<*>) {
-                            startActivity(Intent(this, demo.activityClass.java))
-                        }
-                    val navigator =
-                        rememberSaveable(
-                            saver =
-                                Navigator.Saver(rootDemo, onBackPressedDispatcher, activityStarter)
-                        ) {
-                            Navigator(rootDemo, onBackPressedDispatcher, activityStarter)
-                        }
-
                     SoftInputModeEffect(SoftInputModeSetting.asState().value, window)
                     DecorFitsSystemWindowsEffect(
                         DecorFitsSystemWindowsSetting.asState().value,
@@ -110,33 +98,7 @@ class DemoActivity : FragmentActivity() {
                         LocalLayoutDirection provides LayoutDirectionSetting.asState().value
                     ) {
                         DemoTheme(DynamicThemeSetting.asState().value, this.hostView, window) {
-                            val filteringMode =
-                                rememberSaveable(
-                                    saver = FilterMode.Saver(onBackPressedDispatcher)
-                                ) {
-                                    FilterMode(onBackPressedDispatcher)
-                                }
-                            val onStartFiltering = { filteringMode.isFiltering = true }
-                            val onEndFiltering = { filteringMode.isFiltering = false }
-                            DemoApp(
-                                currentDemo = navigator.currentDemo,
-                                backStackTitle = navigator.backStackTitle,
-                                isFiltering = filteringMode.isFiltering,
-                                onStartFiltering = onStartFiltering,
-                                onEndFiltering = onEndFiltering,
-                                onNavigateToDemo = { demo ->
-                                    if (filteringMode.isFiltering) {
-                                        onEndFiltering()
-                                        navigator.popAll()
-                                    }
-                                    navigator.navigateTo(demo)
-                                },
-                                canNavigateUp = !navigator.isRoot,
-                                onNavigateUp = { onBackPressed() },
-                                launchSettings = {
-                                    startActivity(Intent(this, DemoSettingsActivity::class.java))
-                                },
-                            )
+                            BgCompositionList()
                         }
                     }
                 }
