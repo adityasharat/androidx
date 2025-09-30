@@ -28,16 +28,18 @@ class LazyLayoutPrecomposeState(internal val executor: PrecomposeScheduler) {
   }
 }
 
-interface PrecomposeScheduler {
+abstract class PrecomposeScheduler {
 
-  var state: SubcomposeLayoutState?
-  var items: (() -> LazyLayoutItemProvider)?
+  var state: SubcomposeLayoutState? = null
+  internal set
+  var items: (() -> LazyLayoutItemProvider)? = null
+    internal set
 
-  fun start()
+  abstract fun start()
 
-  fun pause()
+  abstract fun pause()
 
-  fun onDispose() {
+  open fun onDispose() {
     state = null
     items = null
   }

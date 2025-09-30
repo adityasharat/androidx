@@ -26,8 +26,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.layout.LazyLayoutPrecomposeState
+import androidx.compose.foundation.lazy.layout.PrecomposeScheduler
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,7 +40,14 @@ import kotlin.random.Random
 
 @Composable
 fun BgCompositionList() {
-    LazyColumn {
+
+    val precomposeState: LazyLayoutPrecomposeState = remember {
+        LazyLayoutPrecomposeState(executor = SimpleScheduler())
+    }
+
+    LazyColumn(
+        precomposeState = precomposeState,
+    ) {
         items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
             when (item) {
                 is Item.Header -> Header(item)
@@ -55,6 +65,18 @@ fun BgCompositionList() {
             }
         }
     }
+}
+
+class SimpleScheduler(): PrecomposeScheduler() {
+
+    override fun start() {
+        TODO("Not yet implemented")
+    }
+
+    override fun pause() {
+        TODO("Not yet implemented")
+    }
+
 }
 
 @Composable
