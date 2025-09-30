@@ -39,7 +39,10 @@ abstract class PrecomposeScheduler {
 
   abstract fun pause()
 
-  open fun onDispose() {
+  abstract fun onDispose()
+
+  open fun dispose() {
+    onDispose()
     state = null
     items = null
   }
@@ -83,7 +86,7 @@ internal constructor(
 
   fun onDispose() {
     isActive = false
-    executor?.onDispose()
+    executor?.dispose()
   }
 }
 
