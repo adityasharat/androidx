@@ -21,41 +21,41 @@ import androidx.compose.ui.util.trace
 
 internal class LazyLayoutPrecomposeState() {
 
-    var precomposeHandleProvider: PrecomposeHandleProvider? = null
+  var precomposeHandleProvider: PrecomposeHandleProvider? = null
 
-    fun schedulePrecomposition(index: Int): PrecomposeHandle {
-        return precomposeHandleProvider?.schedulePrecomposition(index = index) ?: NoOpHandle
-    }
+  fun schedulePrecomposition(index: Int): PrecomposeHandle {
+    return precomposeHandleProvider?.schedulePrecomposition(index = index) ?: NoOpHandle
+  }
 }
 
 interface PrecomposeScheduler {
-    fun schedulePrecomposition(request: PrecomposeRequest)
+  fun schedulePrecomposition(request: PrecomposeRequest)
 }
 
 interface PrecomposeRequest {
-    fun PrecomposeRequestScope.execute(): Boolean
+  fun PrecomposeRequestScope.execute(): Boolean
 }
 
 interface PrecomposeRequestScope {}
 
 interface PrecomposeHandle {
 
-    fun cancel()
+  fun cancel()
 
-    fun pause()
+  fun pause()
 }
 
 internal class PrecomposeHandleProvider(
     private val itemContentFactory: LazyLayoutItemContentFactory,
     private val subcomposeLayoutState: SubcomposeLayoutState,
 ) {
-    fun schedulePrecomposition(index: Int): PrecomposeHandle {
-        return DefaultPrecomposeRequestAndHandle(
-            index = index,
-            itemContentFactory = itemContentFactory,
-            subcomposeLayoutState = subcomposeLayoutState,
-        )
-    }
+  fun schedulePrecomposition(index: Int): PrecomposeHandle {
+    return DefaultPrecomposeRequestAndHandle(
+        index = index,
+        itemContentFactory = itemContentFactory,
+        subcomposeLayoutState = subcomposeLayoutState,
+    )
+  }
 }
 
 internal class DefaultPrecomposeRequestAndHandle(
@@ -64,83 +64,81 @@ internal class DefaultPrecomposeRequestAndHandle(
     private val subcomposeLayoutState: SubcomposeLayoutState,
 ) : PrecomposeRequest, PrecomposeHandle {
 
-    private var pausedPrecomposition: SubcomposeLayoutState.PausedPrecomposition? = null
+  private var pausedPrecomposition: SubcomposeLayoutState.PausedPrecomposition? = null
 
-    private val isComposed
-        get() = pausedPrecomposition?.isComplete == true
+  private val isComposed
+    get() = pausedPrecomposition?.isComplete == true
 
-    private var isCanceled = false
+  private var isCanceled = false
 
-    private var pauseRequested = false
-    private var keyUsedForComposition: Any? = null
+  private var pauseRequested = false
+  private var keyUsedForComposition: Any? = null
 
-    override fun cancel() {
-        if (!isCanceled) {
-            isCanceled = true
-            cleanup()
-        }
+  override fun cancel() {
+    if (!isCanceled) {
+      isCanceled = true
+      cleanup()
+    }
+  }
+
+  override fun pause() {
+    pauseRequested = true
+  }
+
+  override fun PrecomposeRequestScope.execute(): Boolean {
+
+    val itemProvider = itemContentFactory.itemProvider()
+
+    val isValid = !isCanceled && index in 0 until itemProvider.itemCount
+    if (!isValid) {
+      cleanup()
+      return false
     }
 
-    override fun pause() {
-        pauseRequested = true
+    val key = itemProvider.getKey(index)
+    val contentType = itemProvider.getContentType(index)
+
+    if (keyUsedForComposition != null && key != keyUsedForComposition) {
+      // key for the requested index changed, the request is now invalid
+      cleanup()
+      return false
     }
 
-    override fun PrecomposeRequestScope.execute(): Boolean {
+    if (!isComposed) {
+      trace("compose:lazy:precompose:compose") { performPausableComposition(key, contentType) }
+      if (!isComposed) {
+        return true
+      }
+    }
 
-        val itemProvider = itemContentFactory.itemProvider()
+    return false
+  }
 
-        val isValid = !isCanceled && index in 0 until itemProvider.itemCount
-        if (!isValid) {
-            cleanup()
-            return false
-        }
-
-        val key = itemProvider.getKey(index)
-        val contentType = itemProvider.getContentType(index)
-
-        if (keyUsedForComposition != null && key != keyUsedForComposition) {
-            // key for the requested index changed, the request is now invalid
-            cleanup()
-            return false
-        }
-
-        if (!isComposed) {
-            trace("compose:lazy:precompose:compose") {
-                performPausableComposition(key, contentType)
+  private fun PrecomposeRequestScope.performPausableComposition(key: Any, contentType: Any?) {
+    val composition =
+        pausedPrecomposition
+            ?: run {
+              val content = itemContentFactory.getContent(index, key, contentType)
+              subcomposeLayoutState.createPausedPrecomposition(key, content).also {
+                pausedPrecomposition = it
+                keyUsedForComposition = key
+              }
             }
-            if (!isComposed) {
-                return true
-            }
-        }
 
-        return false
+    pauseRequested = false
+    while (!composition.isComplete && !pauseRequested) {
+      composition.resume { pauseRequested }
     }
+  }
 
-    private fun PrecomposeRequestScope.performPausableComposition(key: Any, contentType: Any?) {
-        val composition =
-            pausedPrecomposition
-                ?: run {
-                    val content = itemContentFactory.getContent(index, key, contentType)
-                    subcomposeLayoutState.createPausedPrecomposition(key, content).also {
-                        pausedPrecomposition = it
-                        keyUsedForComposition = key
-                    }
-                }
-
-        pauseRequested = false
-        while (!composition.isComplete && !pauseRequested) {
-            composition.resume { pauseRequested }
-        }
-    }
-
-    private fun cleanup() {
-        pausedPrecomposition?.cancel()
-        pausedPrecomposition = null
-    }
+  private fun cleanup() {
+    pausedPrecomposition?.cancel()
+    pausedPrecomposition = null
+  }
 }
 
 private object NoOpHandle : PrecomposeHandle {
-    override fun cancel() {}
+  override fun cancel() {}
 
-    override fun pause() {}
+  override fun pause() {}
 }
