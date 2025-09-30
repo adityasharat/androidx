@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -59,6 +60,8 @@ fun BgCompositionList() {
 
         LazyColumn(
             precomposeState = precomposeState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 64.dp)
         ) {
             items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
                 when (item) {
@@ -88,11 +91,7 @@ fun BgCompositionList() {
 
 class SimpleScheduler() : PrecomposeScheduler() {
 
-    companion object {
-        private val THREAD_ID = AtomicInteger(0)
-    }
-
-    val thread = HandlerThread("ListRangeWorker:${THREAD_ID.getAndAdd(1)}")
+    val thread = HandlerThread("ListRangeWorker")
     private var handler: Handler? = null
 
     private var current: Runnable? = null
@@ -148,19 +147,36 @@ class SimpleScheduler() : PrecomposeScheduler() {
     }
 }
 
+fun background(): Color {
+    return if (Thread.currentThread().name == "main") {
+        Color(red = 255, green = 155, blue = 150)
+    } else {
+        Color(red = 150, green = 255, blue = 150)
+    }
+}
+
 @Composable
 private fun Header(header: Item.Header) {
-    Text(text = "[${Thread.currentThread().name}] ${header.text}", fontSize = 20.sp)
+    Text(
+        text = "[${Thread.currentThread().name}] - ${header.text}",
+        fontSize = 20.sp,
+        modifier = Modifier.background(color = background())
+    )
 }
 
 @Composable
 private fun Text(item: Item.Text) {
-    Text(text = item.text, fontSize = 14.sp)
+    Text(text = item.text, fontSize = 14.sp, modifier = Modifier.background(color = background()))
 }
 
 @Composable
 private fun Image(image: Item.Image) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color = background()),
+        contentAlignment = Alignment.Center
+    ) {
         Box(
             modifier = Modifier
                 .size(150.dp)
@@ -174,7 +190,8 @@ private fun Actions() {
     Row(
         modifier = Modifier
             .height(48.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .background(color = background()),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -199,7 +216,7 @@ private val Items = List(100) { index ->
         Item.Image(
             Color(
                 red = Random.nextInt(0, 256),
-                green = Random.nextInt(0, 256),
+                green = 0,
                 blue = Random.nextInt(0, 256),
                 alpha = 255,
             ),
