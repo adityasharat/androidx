@@ -16,6 +16,9 @@
 
 package androidx.compose.integration.demos
 
+import android.os.Handler
+import android.os.HandlerThread
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,73 +39,139 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.trace
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 @Composable
 fun BgCompositionList() {
 
-  val precomposeState: LazyLayoutPrecomposeState = remember {
-    LazyLayoutPrecomposeState(executor = SimpleScheduler())
-  }
-
-  LazyColumn(
-      precomposeState = precomposeState,
-  ) {
-    items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
-      when (item) {
-        is Item.Header -> Header(item)
-        is Item.Text -> Text(item)
-        is Item.Image -> Image(item)
-        is Item.Actions -> {
-          Column {
-            Actions()
-            Row(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.LightGray)) {}
-          }
-        }
-      }
+    val precomposeState: LazyLayoutPrecomposeState = remember {
+        LazyLayoutPrecomposeState(executor = SimpleScheduler())
     }
-  }
+
+    LazyColumn(
+        precomposeState = precomposeState,
+    ) {
+        items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
+            when (item) {
+                is Item.Header -> Header(item)
+                is Item.Text -> Text(item)
+                is Item.Image -> Image(item)
+                is Item.Actions -> {
+                    Column {
+                        Actions()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color.LightGray)
+                        ) {}
+                    }
+                }
+            }
+        }
+    }
 }
 
 class SimpleScheduler() : PrecomposeScheduler() {
 
-  override fun start() {}
+    companion object {
+        private val THREAD_ID = AtomicInteger(0)
+    }
 
-  override fun pause() {}
+    val thread = HandlerThread("ListRangeWorker:${THREAD_ID.getAndAdd(1)}")
+    private var handler: Handler? = null
 
-  override fun onDispose() {}
+    private var current: Runnable? = null
+
+    override fun start() {
+        items?.let { items ->
+            thread.start()
+            val handler = Handler(thread.looper).also {
+                this.handler = it
+            }
+            current?.let { current ->
+                handler.removeCallbacks(current)
+            }
+            current = Task(handler).also {
+                handler.post(it)
+            }
+
+        }
+    }
+
+    override fun pause() {
+        current?.let {
+            handler?.removeCallbacks(it)
+        }
+    }
+
+    override fun onDispose() {
+        current?.let {
+            handler?.removeCallbacks(it)
+        }
+        thread.quitSafely()
+    }
+
+    private inner class Task(val handler: Handler) : Runnable {
+        var currentIndex: Int = 0
+
+        override fun run() {
+            items?.invoke()?.let { items ->
+                val count = items.itemCount
+                if (currentIndex == count - 1) {
+                    return
+                }
+                val handle = state?.createRequest(currentIndex + 1)
+                handle?.let {
+                    trace("precomposer:task:request:execute") {
+                        it.execute()
+                    }
+                }
+                currentIndex++
+
+            }
+        }
+    }
 }
 
 @Composable
 private fun Header(header: Item.Header) {
-  Text(text = "[${Thread.currentThread().name}] ${header.text}", fontSize = 20.sp)
+    Text(text = "[${Thread.currentThread().name}] ${header.text}", fontSize = 20.sp)
 }
 
 @Composable
 private fun Text(item: Item.Text) {
-  Text(text = item.text, fontSize = 14.sp)
+    Text(text = item.text, fontSize = 14.sp)
 }
 
 @Composable
 private fun Image(image: Item.Image) {
-  Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-    Box(modifier = Modifier.size(150.dp).background(image.color))
-  }
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(150.dp)
+                .background(image.color)
+        )
+    }
 }
 
 @Composable
 private fun Actions() {
-  Row(
-      modifier = Modifier.height(48.dp).fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.SpaceBetween,
-  ) {
-    Text(text = "Like", fontSize = 20.sp)
-    Text(text = "|", fontSize = 20.sp)
-    Text(text = "Comments", fontSize = 20.sp)
-    Text(text = "|", fontSize = 20.sp)
-    Text(text = "Share", fontSize = 20.sp)
-  }
+    Row(
+        modifier = Modifier
+            .height(48.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = "Like", fontSize = 20.sp)
+        Text(text = "|", fontSize = 20.sp)
+        Text(text = "Comments", fontSize = 20.sp)
+        Text(text = "|", fontSize = 20.sp)
+        Text(text = "Share", fontSize = 20.sp)
+    }
 }
 
 private val LongText =
@@ -110,32 +179,30 @@ private val LongText =
 
 private val ShortText = LongText.take(123)
 
-private val Items =
-    List(100) { index ->
-          val text: String = if (Random.nextBoolean()) ShortText else LongText
-          listOf(
-              Item.Header("Title $index", index * 4),
-              Item.Text("$text $index", index * 4 + 1),
-              Item.Image(
-                  Color(
-                      red = Random.nextInt(0, 256),
-                      green = Random.nextInt(0, 256),
-                      blue = Random.nextInt(0, 256),
-                      alpha = 255,
-                  ),
-                  index * 4 + 2,
-              ),
-              Item.Actions(index * 4 + 3),
-          )
-        }
-        .flatten()
+private val Items = List(100) { index ->
+    val text: String = if (Random.nextBoolean()) ShortText else LongText
+    listOf(
+        Item.Header("Title $index", index * 4),
+        Item.Text("$text $index", index * 4 + 1),
+        Item.Image(
+            Color(
+                red = Random.nextInt(0, 256),
+                green = Random.nextInt(0, 256),
+                blue = Random.nextInt(0, 256),
+                alpha = 255,
+            ),
+            index * 4 + 2,
+        ),
+        Item.Actions(index * 4 + 3),
+    )
+}.flatten()
 
 private sealed class Item(val id: Int) {
-  data class Header(val text: String, private val uniqueId: Int) : Item(uniqueId)
+    data class Header(val text: String, private val uniqueId: Int) : Item(uniqueId)
 
-  data class Text(val text: String, private val uniqueId: Int) : Item(uniqueId)
+    data class Text(val text: String, private val uniqueId: Int) : Item(uniqueId)
 
-  data class Image(val color: Color, private val uniqueId: Int) : Item(uniqueId)
+    data class Image(val color: Color, private val uniqueId: Int) : Item(uniqueId)
 
-  data class Actions(private val uniqueId: Int) : Item(uniqueId)
+    data class Actions(private val uniqueId: Int) : Item(uniqueId)
 }

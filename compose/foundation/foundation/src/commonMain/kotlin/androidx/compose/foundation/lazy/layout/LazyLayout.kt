@@ -127,9 +127,10 @@ fun LazyLayout(
                 prefetchState?.prefetchHandleProvider =
                     PrefetchHandleProvider(itemContentFactory, subcomposeLayoutState, executor)
 
-                precomposeState?.precomposeHandleProvider = PrecomposeHandleProvider(
+                precomposeState?.precomposeRequestProvider = PrecomposeRequestProvider(
                     itemContentFactory = itemContentFactory,
                     subcomposeLayoutState = subcomposeLayoutState,
+                    precomposeState = precomposeState,
                     executor = precomposeState.executor
                 )
 
@@ -140,8 +141,8 @@ fun LazyLayout(
                     prefetchState?.prefetchHandleProvider?.onDisposed()
                     prefetchState?.prefetchHandleProvider = null
 
-                    precomposeState?.precomposeHandleProvider?.onDispose()
-                    precomposeState?.precomposeHandleProvider = null
+                    precomposeState?.precomposeRequestProvider?.onDispose()
+                    precomposeState?.precomposeRequestProvider = null
                 }
             }
         }
