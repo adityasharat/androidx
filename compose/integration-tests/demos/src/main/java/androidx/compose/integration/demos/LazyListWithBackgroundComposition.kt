@@ -158,7 +158,7 @@ fun background(): Color {
 @Composable
 private fun Header(header: Item.Header) {
     Text(
-        text = "[${Thread.currentThread().name}] - ${header.text}",
+        text = "${header.text}",
         fontSize = 20.sp,
         modifier = Modifier.background(color = background())
     )
