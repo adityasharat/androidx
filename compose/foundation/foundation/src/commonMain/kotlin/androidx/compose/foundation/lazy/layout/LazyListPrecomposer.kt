@@ -19,7 +19,7 @@ package androidx.compose.foundation.lazy.layout
 import androidx.compose.ui.layout.SubcomposeLayoutState
 import androidx.compose.ui.util.trace
 
-internal class LazyLayoutPrecomposeState() {
+class LazyLayoutPrecomposeState() {
 
   var precomposeHandleProvider: PrecomposeHandleProvider? = null
 
@@ -45,16 +45,24 @@ interface PrecomposeHandle {
   fun pause()
 }
 
-internal class PrecomposeHandleProvider(
+class PrecomposeHandleProvider
+internal constructor(
     private val itemContentFactory: LazyLayoutItemContentFactory,
     private val subcomposeLayoutState: SubcomposeLayoutState,
 ) {
+
+  var isActive: Boolean = true
+
   fun schedulePrecomposition(index: Int): PrecomposeHandle {
     return DefaultPrecomposeRequestAndHandle(
         index = index,
         itemContentFactory = itemContentFactory,
         subcomposeLayoutState = subcomposeLayoutState,
-    )
+        isActive = { isActive })
+  }
+
+  fun onDispose() {
+    isActive = false
   }
 }
 
@@ -62,6 +70,7 @@ internal class DefaultPrecomposeRequestAndHandle(
     private val index: Int,
     private val itemContentFactory: LazyLayoutItemContentFactory,
     private val subcomposeLayoutState: SubcomposeLayoutState,
+    private val isActive: () -> Boolean,
 ) : PrecomposeRequest, PrecomposeHandle {
 
   private var pausedPrecomposition: SubcomposeLayoutState.PausedPrecomposition? = null
@@ -86,6 +95,8 @@ internal class DefaultPrecomposeRequestAndHandle(
   }
 
   override fun PrecomposeRequestScope.execute(): Boolean {
+
+    if (!isActive()) return false
 
     val itemProvider = itemContentFactory.itemProvider()
 
@@ -114,15 +125,22 @@ internal class DefaultPrecomposeRequestAndHandle(
     return false
   }
 
+  fun onPauseRequested(): Boolean {
+    pause()
+    return true
+  }
+
   private fun PrecomposeRequestScope.performPausableComposition(key: Any, contentType: Any?) {
     val composition =
         pausedPrecomposition
             ?: run {
               val content = itemContentFactory.getContent(index, key, contentType)
-              subcomposeLayoutState.createPausedPrecomposition(key, content).also {
-                pausedPrecomposition = it
-                keyUsedForComposition = key
-              }
+              subcomposeLayoutState
+                  .createPausedPrecomposition(key, content, ::onPauseRequested)
+                  .also {
+                    pausedPrecomposition = it
+                    keyUsedForComposition = key
+                  }
             }
 
     pauseRequested = false
