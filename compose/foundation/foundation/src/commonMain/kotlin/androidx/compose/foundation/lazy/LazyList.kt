@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.lazy.layout.CacheWindowLogic
 import androidx.compose.foundation.lazy.layout.LazyLayout
 import androidx.compose.foundation.lazy.layout.LazyLayoutMeasurePolicy
+import androidx.compose.foundation.lazy.layout.LazyLayoutPrecomposeState
 import androidx.compose.foundation.lazy.layout.StickyItemsPlacement
 import androidx.compose.foundation.lazy.layout.calculateLazyLayoutPinnedIndices
 import androidx.compose.foundation.lazy.layout.lazyLayoutBeyondBoundsModifier
@@ -81,6 +82,8 @@ internal fun LazyList(
     verticalAlignment: Alignment.Vertical? = null,
     /** The horizontal arrangement for items. Required when isVertical is false */
     horizontalArrangement: Arrangement.Horizontal? = null,
+    /** The state for background precomposition */
+    precomposeState: LazyLayoutPrecomposeState? = null,
     /** The content of the list */
     content: LazyListScope.() -> Unit,
 ) {
@@ -150,6 +153,7 @@ internal fun LazyList(
                     overscrollEffect = overscrollEffect,
                 ),
         prefetchState = state.prefetchState,
+        precomposeState = precomposeState,
         measurePolicy = measurePolicy,
         itemProvider = itemProviderLambda,
     )
