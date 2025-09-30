@@ -19,7 +19,7 @@ package androidx.compose.foundation.lazy.layout
 import androidx.compose.ui.layout.SubcomposeLayoutState
 import androidx.compose.ui.util.trace
 
-class LazyLayoutPrecomposeState() {
+class LazyLayoutPrecomposeState(private val executor: PrecomposeScheduler) {
 
   var precomposeHandleProvider: PrecomposeHandleProvider? = null
 
@@ -30,6 +30,7 @@ class LazyLayoutPrecomposeState() {
 
 interface PrecomposeScheduler {
   fun schedulePrecomposition(request: PrecomposeRequest)
+  fun onDispose()
 }
 
 interface PrecomposeRequest {
@@ -53,16 +54,20 @@ internal constructor(
 
   var isActive: Boolean = true
 
+  var executor: PrecomposeScheduler? = null
+
   fun schedulePrecomposition(index: Int): PrecomposeHandle {
     return DefaultPrecomposeRequestAndHandle(
         index = index,
         itemContentFactory = itemContentFactory,
         subcomposeLayoutState = subcomposeLayoutState,
-        isActive = { isActive })
+        isActive = { isActive },
+    )
   }
 
   fun onDispose() {
     isActive = false
+    executor?.onDispose()
   }
 }
 
