@@ -18,9 +18,7 @@ package androidx.compose.integration.demos
 
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.trace
-import java.util.concurrent.atomic.AtomicInteger
+import kotlin.String
 import kotlin.random.Random
 
 @Composable
@@ -64,22 +62,7 @@ fun BgCompositionList() {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 64.dp)
         ) {
             items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
-                when (item) {
-                    is Item.Header -> Header(item)
-                    is Item.Text -> Text(item)
-                    is Item.Image -> Image(item)
-                    is Item.Actions -> {
-                        Column {
-                            Actions()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(Color.LightGray)
-                            ) {}
-                        }
-                    }
-                }
+                Item(item = item)
             }
         }
     } else {
@@ -147,40 +130,45 @@ class SimpleScheduler() : PrecomposeScheduler() {
     }
 }
 
-fun background(): Color {
-    return if (Thread.currentThread().name == "main") {
-        Color(red = 255, green = 155, blue = 150)
-    } else {
-        Color(red = 150, green = 255, blue = 150)
+@Composable
+private fun Item(item: ItemData) {
+    Column(modifier = Modifier.background(color = background())) {
+        Header(text = "Title ${item.id}")
+        Text(text = item.text, fontSize = 14.sp)
+        Image(
+            color = Color(
+                red = Random.nextInt(0, 256),
+                green = 0,
+                blue = Random.nextInt(0, 256),
+                alpha = 255,
+            )
+        )
+        Column {
+            Actions()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color.LightGray)
+            ) {
+
+            }
+        }
     }
 }
 
 @Composable
-private fun Header(header: Item.Header) {
-    Text(
-        text = header.text,
-        fontSize = 20.sp,
-        modifier = Modifier.background(color = background())
-    )
+private fun Header(text: String) {
+    Text(text = text, fontSize = 20.sp)
 }
 
 @Composable
-private fun Text(item: Item.Text) {
-    Text(text = item.text, fontSize = 14.sp, modifier = Modifier.background(color = background()))
-}
-
-@Composable
-private fun Image(image: Item.Image) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(color = background()),
-        contentAlignment = Alignment.Center
-    ) {
+private fun Image(color: Color) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(150.dp)
-                .background(image.color)
+                .background(color)
         )
     }
 }
@@ -190,8 +178,7 @@ private fun Actions() {
     Row(
         modifier = Modifier
             .height(48.dp)
-            .fillMaxWidth()
-            .background(color = background()),
+            .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -208,30 +195,17 @@ private val LongText =
 
 private val ShortText = LongText.take(123)
 
-private val Items = List(100) { index ->
+private val Items = List(5) { index ->
     val text: String = if (Random.nextBoolean()) ShortText else LongText
-    listOf(
-        Item.Header("Title $index", index * 4),
-        Item.Text("$text $index", index * 4 + 1),
-        Item.Image(
-            Color(
-                red = Random.nextInt(0, 256),
-                green = 0,
-                blue = Random.nextInt(0, 256),
-                alpha = 255,
-            ),
-            index * 4 + 2,
-        ),
-        Item.Actions(index * 4 + 3),
-    )
-}.flatten()
+    ItemData(id = index, text = text)
+}
 
-private sealed class Item(val id: Int) {
-    data class Header(val text: String, private val uniqueId: Int) : Item(uniqueId)
+private data class ItemData(val id: Int, val text: String)
 
-    data class Text(val text: String, private val uniqueId: Int) : Item(uniqueId)
-
-    data class Image(val color: Color, private val uniqueId: Int) : Item(uniqueId)
-
-    data class Actions(private val uniqueId: Int) : Item(uniqueId)
+fun background(): Color {
+    return if (Thread.currentThread().name == "main") {
+        Color(red = 255, green = 155, blue = 150)
+    } else {
+        Color(red = 150, green = 255, blue = 150)
+    }
 }
