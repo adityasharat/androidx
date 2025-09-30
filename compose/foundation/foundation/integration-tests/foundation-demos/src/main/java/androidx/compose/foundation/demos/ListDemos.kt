@@ -132,6 +132,7 @@ import kotlinx.coroutines.launch
 
 val LazyListDemos =
     listOf(
+        ComposableDemo("Bg Composition") { BgCompositionList() },
         ComposableDemo("Simple column") { LazyColumnDemo() },
         ComposableDemo("Add/remove items") { ListAddRemoveItemsDemo() },
         ComposableDemo("Hoisted state") { ListHoistedStateDemo() },
@@ -164,6 +165,95 @@ val LazyListDemos =
         ComposableDemo("Focus Scrolling") { BringIntoViewDemo() },
         PagingDemos,
     )
+
+@Composable
+fun BgCompositionList() {
+    LazyColumn {
+        items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
+            when (item) {
+                is Item.Header -> Header(item)
+                is Item.Text -> Text(item)
+                is Item.Image -> Image(item)
+                is Item.Actions -> {
+                    Column {
+                        Actions()
+                        Row(
+                            modifier =
+                                Modifier.fillMaxWidth().height(1.dp).background(Color.LightGray)
+                        ) {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Header(header: Item.Header) {
+    Text(text = "[${Thread.currentThread().name}] ${header.text}", fontSize = 20.sp)
+}
+
+@Composable
+private fun Text(item: Item.Text) {
+    Text(text = item.text, fontSize = 14.sp)
+}
+
+@Composable
+private fun Image(image: Item.Image) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(150.dp).background(image.color))
+    }
+}
+
+@Composable
+private fun Actions() {
+    Row(
+        modifier = Modifier.height(48.dp).fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = "Like", fontSize = 20.sp)
+        Text(text = "|", fontSize = 20.sp)
+        Text(text = "Comments", fontSize = 20.sp)
+        Text(text = "|", fontSize = 20.sp)
+        Text(text = "Share", fontSize = 20.sp)
+    }
+}
+
+private val LongText =
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"
+
+private val ShortText = LongText.take(123)
+
+private val Items =
+    List(100) { index ->
+        val text: String = if (Random.nextBoolean()) ShortText else LongText
+        listOf(
+            Item.Header("Title $index", index * 4),
+            Item.Text("$text $index", index * 4 + 1),
+            Item.Image(
+                Color(
+                    red = Random.nextInt(0, 256),
+                    green = Random.nextInt(0, 256),
+                    blue = Random.nextInt(0, 256),
+                    alpha = 255,
+                ),
+                index * 4 + 2,
+            ),
+            Item.Actions(index * 4 + 3),
+        )
+    }
+        .flatten()
+
+private sealed class Item(val id: Int) {
+    data class Header(val text: String, private val uniqueId: Int) : Item(uniqueId)
+
+    data class Text(val text: String, private val uniqueId: Int) : Item(uniqueId)
+
+    data class Image(val color: Color, private val uniqueId: Int) : Item(uniqueId)
+
+    data class Actions(private val uniqueId: Int) : Item(uniqueId)
+}
 
 @Preview
 @Composable

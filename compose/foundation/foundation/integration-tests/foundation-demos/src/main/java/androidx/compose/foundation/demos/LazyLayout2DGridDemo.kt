@@ -144,7 +144,7 @@ fun Lazy2DGrid(
         itemProvider,
         modifier.draggable2D(state).then(state.remeasurementModifier),
         null,
-        measurePolicy,
+        gitmeasurePolicy,
     )
 }
 

@@ -286,7 +286,7 @@ constructor(
 
     /** Only used for testing to disable prefetching when needed to test the main logic. */
     /*@VisibleForTesting*/
-    internal var prefetchingEnabled: Boolean = true
+    internal var prefetchingEnabled: Boolean = false
 
     /**
      * The [Remeasurement] object associated with our layout. It allows us to remeasure
