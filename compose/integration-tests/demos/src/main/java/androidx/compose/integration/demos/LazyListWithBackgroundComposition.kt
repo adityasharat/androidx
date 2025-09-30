@@ -107,7 +107,7 @@ class SimpleScheduler() : PrecomposeScheduler() {
                 handler.removeCallbacks(current)
             }
             current = Task(handler).also {
-                handler.post(it)
+                handler.postDelayed(it, 1000L) // TODO: Remove delay to avoid race
             }
 
         }
