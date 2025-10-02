@@ -254,17 +254,13 @@ class SubcomposeLayoutState(private val slotReusePolicy: SubcomposeSlotReusePoli
     fun createPausedPrecomposition(
         slotId: Any?,
         content: @Composable () -> Unit,
-    ): PausedPrecomposition = state.precomposePaused(slotId, content, FALSE_LAMBDA)
+    ): PausedPrecomposition = state.precomposePaused(slotId, content, EMPTY_LAMBDA)
 
     fun createPausedPrecomposition(
         slotId: Any?,
         content: @Composable () -> Unit,
-        requestPause: () -> Boolean,
+        requestPause: () -> Unit,
     ): PausedPrecomposition = state.precomposePaused(slotId, content, requestPause)
-
-    companion object {
-        val FALSE_LAMBDA = { false }
-    }
 
     internal fun forceRecomposeChildren() = state.forceRecomposeChildren()
 
@@ -376,6 +372,10 @@ class SubcomposeLayoutState(private val slotReusePolicy: SubcomposeSlotReusePoli
          * [IntSize.Zero] if this is called before [premeasure].
          */
         fun getSize(index: Int): IntSize = IntSize.Zero
+    }
+
+    companion object {
+        val EMPTY_LAMBDA = { }
     }
 }
 
@@ -1170,7 +1170,7 @@ internal class LayoutNodeSubcompositionsState(
         }
     }
 
-    fun precomposePaused(slotId: Any?, content: @Composable () -> Unit, requestPause: () -> Boolean): PausedPrecomposition {
+    fun precomposePaused(slotId: Any?, content: @Composable () -> Unit, requestPause: () -> Unit): PausedPrecomposition {
         if (!root.isAttached) {
             return object : PausedPrecompositionImpl {
                 override val isComplete: Boolean = true
@@ -1303,7 +1303,7 @@ internal class LayoutNodeSubcompositionsState(
                 activeState.value = value
             }
 
-        var requestPause: (() -> Boolean)? = null
+        var requestPause: (() -> Unit)? = null
 
         val operations = mutableIntListOf()
 
@@ -1314,7 +1314,7 @@ internal class LayoutNodeSubcompositionsState(
             }
         }
 
-        fun pause(): Boolean = requestPause?.invoke() ?: false
+        fun pause() = requestPause?.invoke()
     }
 
     private inner class Scope : SubcomposeMeasureScope {

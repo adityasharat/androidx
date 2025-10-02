@@ -16,6 +16,7 @@
 
 package androidx.compose.foundation.lazy.layout
 
+import androidx.compose.foundation.AtomicReference
 import androidx.compose.ui.layout.SubcomposeLayoutState
 import androidx.compose.ui.util.trace
 
@@ -25,11 +26,6 @@ class LazyLayoutPrecomposeState(internal val executor: PrecomposeScheduler) {
 
     fun createRequest(index: Int): PrecomposeRequest {
         return precomposeRequestProvider?.create(index = index) ?: NoOpRequest
-    }
-
-    fun precompose(request: PrecomposeRequest): Boolean {
-        return request.execute()
-
     }
 }
 
@@ -54,10 +50,7 @@ abstract class PrecomposeScheduler {
 }
 
 interface PrecomposeRequest {
-  fun execute(): Boolean
-}
-
-interface PrecomposeHandle {
+    fun execute(): Boolean
 
     fun cancel()
 
@@ -68,132 +61,85 @@ class PrecomposeRequestProvider
 internal constructor(
     private val itemContentFactory: LazyLayoutItemContentFactory,
     private val subcomposeLayoutState: SubcomposeLayoutState,
-    internal var executor: PrecomposeScheduler? = null,
+    internal var executor: PrecomposeScheduler,
     precomposeState: LazyLayoutPrecomposeState,
 ) {
 
-    var isActive: Boolean = true
+    private var isInActiveState: Boolean = true
+    val isActive: () -> Boolean = { isInActiveState }
 
     init {
-        executor?.state = precomposeState
-        executor?.items = itemContentFactory.itemProvider
+        executor.state = precomposeState
+        executor.items = itemContentFactory.itemProvider
     }
 
     fun create(index: Int): PrecomposeRequest {
-        return DefaultPrecomposeRequestAndHandle(
-            index = index,
-            itemContentFactory = itemContentFactory,
-            subcomposeLayoutState = subcomposeLayoutState,
-            isActive = { isActive },
+        // assert main thread
+        val itemProvider = itemContentFactory.itemProvider()
+        val key = itemProvider.getKey(index)
+        val contentType = itemProvider.getContentType(index)
+
+        val shouldPause: AtomicReference<Boolean> = AtomicReference(false)
+        val requestPause = {
+            shouldPause.set(true)
+        }
+        val content = itemContentFactory.getContent(index, key, contentType)
+        val composition = trace("compose:lazy:precompose:create") {
+             subcomposeLayoutState
+                .createPausedPrecomposition(key, content, requestPause)
+        }
+        return DefaultPrecomposeRequest(
+            composition = composition,
+            isActive = isActive,
+            shouldPause = shouldPause
         )
     }
 
     fun onDispose() {
-        isActive = false
-        executor?.dispose()
+        isInActiveState = false
+        executor.dispose()
     }
 }
 
-internal class DefaultPrecomposeRequestAndHandle(
-    private val index: Int,
-    private val itemContentFactory: LazyLayoutItemContentFactory,
-    private val subcomposeLayoutState: SubcomposeLayoutState,
+internal class DefaultPrecomposeRequest(
+    private val composition: SubcomposeLayoutState.PausedPrecomposition,
     private val isActive: () -> Boolean,
-) : PrecomposeRequest, PrecomposeHandle {
+    private val shouldPause: AtomicReference<Boolean>,
+) : PrecomposeRequest {
 
-    private var pausedPrecomposition: SubcomposeLayoutState.PausedPrecomposition? = null
-
-    private val isComposed
-        get() = pausedPrecomposition?.isComplete == true
-
+    private val isComposed = composition.isComplete
     private var isCanceled = false
 
-    private var pauseRequested = false
-    private var keyUsedForComposition: Any? = null
-
     override fun cancel() {
-        if (!isCanceled) {
-            isCanceled = true
-            cleanup()
-        }
+        isCanceled = true
     }
 
     override fun pause() {
-        pauseRequested = true
+        shouldPause.set(true)
     }
 
     override fun execute(): Boolean {
-
-        if (!isActive()) return false
-
-        val itemProvider = itemContentFactory.itemProvider()
-
-        val isValid = !isCanceled && index in 0 until itemProvider.itemCount
-        if (!isValid) {
-            cleanup()
+        if (!isActive() || isCanceled || shouldPause.get()) {
             return false
         }
-
-        val key = itemProvider.getKey(index)
-        val contentType = itemProvider.getContentType(index)
-
-        if (keyUsedForComposition != null && key != keyUsedForComposition) {
-            // key for the requested index changed, the request is now invalid
-            cleanup()
-            return false
-        }
-
         if (!isComposed) {
             trace("compose:lazy:precompose:compose") {
-                performPausableComposition(
-                    key,
-                    contentType
-                )
+                shouldPause.set(false)
+                while (!composition.isComplete && !shouldPause.get()) {
+                    composition.resume { shouldPause.get() }
+                }
             }
             if (!isComposed) {
                 return true
             }
         }
-
         return false
     }
-
-    fun onPauseRequested(): Boolean {
-        pause()
-        return true
-    }
-
-    private fun performPausableComposition(key: Any, contentType: Any?) {
-        val composition =
-            pausedPrecomposition
-                ?: run {
-                    val content = itemContentFactory.getContent(index, key, contentType)
-                    subcomposeLayoutState
-                        .createPausedPrecomposition(key, content, ::onPauseRequested)
-                        .also {
-                            pausedPrecomposition = it
-                            keyUsedForComposition = key
-                        }
-                }
-
-        pauseRequested = false
-        while (!composition.isComplete && !pauseRequested) {
-            composition.resume { pauseRequested }
-        }
-    }
-
-    private fun cleanup() {
-        pausedPrecomposition?.cancel()
-        pausedPrecomposition = null
-    }
 }
 
-private object NoOpHandle : PrecomposeHandle {
-    override fun cancel() {}
-
-    override fun pause() {}
-}
 
 private object NoOpRequest : PrecomposeRequest {
     override fun execute(): Boolean = false
+    override fun cancel() {}
+    override fun pause() {}
 }
