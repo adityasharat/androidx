@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.trace
 import kotlin.String
 import kotlin.random.Random
 
@@ -65,28 +65,33 @@ fun background(): Color {
 
 @Composable
 fun BgCompositionList() {
-
-    val precomposeState: LazyLayoutPrecomposeState = remember {
-        LazyLayoutPrecomposeState(executor = SimpleScheduler())
-    }
-
     val showList = remember { mutableStateOf(false) }
+    Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(onClick = { showList.value = !showList.value }) {
+            Text(
+                text = if (showList.value) {
+                    "Remove"
+                } else {
+                    "Add"
+                }, fontSize = 20.sp
+            )
+        }
+        if (showList.value) {
+            val precomposeState: LazyLayoutPrecomposeState = remember {
+                LazyLayoutPrecomposeState(executor = SimpleScheduler())
+            }
+            LazyColumn(
+                precomposeState = precomposeState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
 
-    if (showList.value) {
-
-        LazyColumn(
-            precomposeState = precomposeState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 64.dp)
-        ) {
-            items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
-                Item(item = item)
+                ) {
+                items(Items, key = { it.id }, contentType = { it.javaClass }) { item ->
+                    Item(item = item)
+                }
             }
         }
-    } else {
-        Button(onClick = { showList.value = true }) {
-            Text(text = "Show", fontSize = 20.sp)
-        }
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -118,7 +123,7 @@ class SimpleScheduler() : PrecomposeScheduler() {
                 handler.removeCallbacks(current)
             }
 
-            val requests = List<PrecomposeRequest>(count) { index ->
+            val requests = List(count) { index ->
                 requireNotNull(state).createRequest(index)
             }
 
