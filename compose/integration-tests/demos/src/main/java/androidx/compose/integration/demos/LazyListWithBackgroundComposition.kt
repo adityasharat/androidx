@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.layout.LazyLayoutPrecomposeState
+import androidx.compose.foundation.lazy.layout.PrecomposeRequest
 import androidx.compose.foundation.lazy.layout.PrecomposeScheduler
 import androidx.compose.material.Button
 import androidx.compose.material.Text
@@ -44,6 +45,21 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.trace
 import kotlin.String
 import kotlin.random.Random
+
+private val LongText =
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"
+
+private val ShortText = LongText.take(123)
+
+private data class ItemData(val id: Int, val text: String)
+
+fun background(): Color {
+    return if (Thread.currentThread().name == "main") {
+        Color(red = 255, green = 155, blue = 150)
+    } else {
+        Color(red = 150, green = 255, blue = 150)
+    }
+}
 
 @Composable
 fun BgCompositionList() {
@@ -72,6 +88,11 @@ fun BgCompositionList() {
     }
 }
 
+private val Items = List(100) { index ->
+    val text: String = if (Random.nextBoolean()) ShortText else LongText
+    ItemData(id = index, text = text)
+}
+
 class SimpleScheduler() : PrecomposeScheduler() {
 
     val thread = HandlerThread("ListRangeWorker")
@@ -81,14 +102,25 @@ class SimpleScheduler() : PrecomposeScheduler() {
 
     override fun start() {
         items?.let { items ->
+            val count = items.invoke().itemCount
+            if (count == 0) {
+                return
+            }
+
             thread.start()
-            val handler = Handler(thread.looper).also {
+            val handler = this.handler ?: Handler(thread.looper).also {
                 this.handler = it
             }
+
             current?.let { current ->
                 handler.removeCallbacks(current)
             }
-            current = Task(handler).also {
+
+            val requests = List<PrecomposeRequest>(count) { index ->
+                requireNotNull(state).createRequest(index)
+            }
+
+            current = Task(requests).also {
                 handler.postDelayed(it, 1000L) // TODO: Remove delay to avoid race
             }
 
@@ -105,26 +137,20 @@ class SimpleScheduler() : PrecomposeScheduler() {
         current?.let {
             handler?.removeCallbacks(it)
         }
+        current = null
+        handler = null
         thread.quitSafely()
     }
 
-    private inner class Task(val handler: Handler) : Runnable {
-        var currentIndex: Int = 0
+    private inner class Task(val requests: List<PrecomposeRequest>) : Runnable {
+
+        var nextIndex: Int = 0
 
         override fun run() {
-            items?.invoke()?.let { items ->
-                val count = items.itemCount
-                if (currentIndex == count - 1) {
-                    return
-                }
-                val handle = state?.createRequest(currentIndex + 1)
-                handle?.let {
-                    trace("precomposer:task:request:execute") {
-                        it.execute()
-                    }
-                }
-                currentIndex++
-                this.handler.post(this)
+            if (nextIndex < requests.size) {
+                requests[nextIndex].execute()
+                nextIndex++
+                handler?.post(this)
             }
         }
     }
@@ -187,25 +213,5 @@ private fun Actions() {
         Text(text = "Comments", fontSize = 20.sp)
         Text(text = "|", fontSize = 20.sp)
         Text(text = "Share", fontSize = 20.sp)
-    }
-}
-
-private val LongText =
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat"
-
-private val ShortText = LongText.take(123)
-
-private val Items = List(5) { index ->
-    val text: String = if (Random.nextBoolean()) ShortText else LongText
-    ItemData(id = index, text = text)
-}
-
-private data class ItemData(val id: Int, val text: String)
-
-fun background(): Color {
-    return if (Thread.currentThread().name == "main") {
-        Color(red = 255, green = 155, blue = 150)
-    } else {
-        Color(red = 150, green = 255, blue = 150)
     }
 }
