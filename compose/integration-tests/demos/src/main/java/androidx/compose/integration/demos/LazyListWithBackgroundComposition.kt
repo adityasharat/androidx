@@ -97,7 +97,7 @@ private val Items = List(100) { index ->
 
 class SimpleScheduler() : PrecomposeScheduler() {
 
-    val thread = HandlerThread("ListRangeWorker")
+    private val thread = HandlerThread("ListRangeWorker")
     private var handler: Handler? = null
 
     private var current: Runnable? = null
