@@ -65,8 +65,9 @@ fun LazyLayout(
     itemProvider: () -> LazyLayoutItemProvider,
     modifier: Modifier = Modifier,
     prefetchState: LazyLayoutPrefetchState? = null,
+    precomposeState: LazyLayoutPrecomposeState? = null,
     measurePolicy: LazyLayoutMeasureScope.(Constraints) -> MeasureResult,
-) = LazyLayout(itemProvider, modifier, prefetchState, LazyLayoutMeasurePolicy(measurePolicy))
+) = LazyLayout(itemProvider, modifier, prefetchState, precomposeState, LazyLayoutMeasurePolicy(measurePolicy))
 
 /**
  * A layout that only composes and lays out currently needed items. Can be used to build efficient
@@ -108,6 +109,7 @@ fun LazyLayout(
     itemProvider: () -> LazyLayoutItemProvider,
     modifier: Modifier = Modifier,
     prefetchState: LazyLayoutPrefetchState? = null,
+    precomposeState: LazyLayoutPrecomposeState? = null,
     measurePolicy: LazyLayoutMeasurePolicy,
 ) {
     val currentItemProvider = rememberUpdatedState(itemProvider)
@@ -119,15 +121,28 @@ fun LazyLayout(
         val subcomposeLayoutState = remember {
             SubcomposeLayoutState(LazyLayoutItemReusePolicy(itemContentFactory))
         }
-        if (prefetchState != null) {
-            val executor = prefetchState.prefetchScheduler ?: rememberDefaultPrefetchScheduler()
+        if (prefetchState != null || precomposeState != null) {
+            val executor = prefetchState?.prefetchScheduler ?: rememberDefaultPrefetchScheduler()
             DisposableEffect(prefetchState, itemContentFactory, subcomposeLayoutState, executor) {
-                prefetchState.prefetchHandleProvider =
+                prefetchState?.prefetchHandleProvider =
                     PrefetchHandleProvider(itemContentFactory, subcomposeLayoutState, executor)
+
+                precomposeState?.precomposeRequestProvider = PrecomposeRequestProvider(
+                    itemContentFactory = itemContentFactory,
+                    subcomposeLayoutState = subcomposeLayoutState,
+                    precomposeState = precomposeState,
+                    executor = precomposeState.executor
+                )
+
+                precomposeState?.executor?.start()
+
                 onDispose {
                     // clean up prefetch handle provider
-                    prefetchState.prefetchHandleProvider?.onDisposed()
-                    prefetchState.prefetchHandleProvider = null
+                    prefetchState?.prefetchHandleProvider?.onDisposed()
+                    prefetchState?.prefetchHandleProvider = null
+
+                    precomposeState?.precomposeRequestProvider?.onDispose()
+                    precomposeState?.precomposeRequestProvider = null
                 }
             }
         }

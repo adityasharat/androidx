@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.internal.JvmDefaultWithCompatibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.layout.LazyLayoutPrecomposeState
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -396,6 +397,7 @@ fun LazyColumn(
     flingBehavior: FlingBehavior = ScrollableDefaults.flingBehavior(),
     userScrollEnabled: Boolean = true,
     overscrollEffect: OverscrollEffect? = rememberOverscrollEffect(),
+    precomposeState: LazyLayoutPrecomposeState? = null,
     content: LazyListScope.() -> Unit,
 ) {
     LazyList(
@@ -409,6 +411,7 @@ fun LazyColumn(
         reverseLayout = reverseLayout,
         userScrollEnabled = userScrollEnabled,
         overscrollEffect = overscrollEffect,
+        precomposeState = precomposeState,
         content = content,
     )
 }

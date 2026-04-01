@@ -254,7 +254,13 @@ class SubcomposeLayoutState(private val slotReusePolicy: SubcomposeSlotReusePoli
     fun createPausedPrecomposition(
         slotId: Any?,
         content: @Composable () -> Unit,
-    ): PausedPrecomposition = state.precomposePaused(slotId, content)
+    ): PausedPrecomposition = state.precomposePaused(slotId, content, EMPTY_LAMBDA)
+
+    fun createPausedPrecomposition(
+        slotId: Any?,
+        content: @Composable () -> Unit,
+        requestPause: () -> Unit,
+    ): PausedPrecomposition = state.precomposePaused(slotId, content, requestPause)
 
     internal fun forceRecomposeChildren() = state.forceRecomposeChildren()
 
@@ -366,6 +372,10 @@ class SubcomposeLayoutState(private val slotReusePolicy: SubcomposeSlotReusePoli
          * [IntSize.Zero] if this is called before [premeasure].
          */
         fun getSize(index: Int): IntSize = IntSize.Zero
+    }
+
+    companion object {
+        val EMPTY_LAMBDA = { }
     }
 }
 
@@ -646,6 +656,7 @@ internal class LayoutNodeSubcompositionsState(
                 // the paused composition is initialized and the content didn't change
                 return
             } else {
+                nodeState.pause()
                 // we can apply as we are still composing the same content.
                 nodeState.applyPausedPrecomposition(shouldComplete = true)
             }
@@ -1159,7 +1170,7 @@ internal class LayoutNodeSubcompositionsState(
         }
     }
 
-    fun precomposePaused(slotId: Any?, content: @Composable () -> Unit): PausedPrecomposition {
+    fun precomposePaused(slotId: Any?, content: @Composable () -> Unit, requestPause: () -> Unit): PausedPrecomposition {
         if (!root.isAttached) {
             return object : PausedPrecompositionImpl {
                 override val isComplete: Boolean = true
@@ -1190,6 +1201,7 @@ internal class LayoutNodeSubcompositionsState(
                 val nodeState = nodeState
                 val pausedComposition = nodeState?.pausedComposition
                 return if (pausedComposition != null && !pausedComposition.isComplete) {
+                    nodeState.requestPause = requestPause
                     nodeState.record(SLOperation.ResumePaused)
                     val isComplete =
                         Snapshot.withoutReadObservation {
@@ -1291,6 +1303,8 @@ internal class LayoutNodeSubcompositionsState(
                 activeState.value = value
             }
 
+        var requestPause: (() -> Unit)? = null
+
         val operations = mutableIntListOf()
 
         fun record(op: SLOperation) {
@@ -1299,6 +1313,8 @@ internal class LayoutNodeSubcompositionsState(
                 operations.removeRange(0, 10)
             }
         }
+
+        fun pause() = requestPause?.invoke()
     }
 
     private inner class Scope : SubcomposeMeasureScope {
